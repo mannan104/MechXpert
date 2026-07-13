@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
 
 st.set_page_config(
     page_title="MECHXPERT",
@@ -71,6 +69,28 @@ font-size:16px;
 margin-top:8px;
 }
 
+.gauge-wrap{
+background:rgba(0,0,0,0.25);
+border-radius:12px;
+padding:16px 20px;
+margin-top:10px;
+margin-bottom:10px;
+}
+
+.gauge-track{
+width:100%;
+height:22px;
+background:rgba(255,255,255,0.15);
+border-radius:11px;
+overflow:hidden;
+margin-top:8px;
+}
+
+.gauge-fill{
+height:100%;
+border-radius:11px;
+}
+
 .footer{
 text-align:center;
 color:rgba(255,255,255,0.7);
@@ -94,6 +114,32 @@ color:white !important;
 
 </style>
 """, unsafe_allow_html=True)
+
+
+def gauge(label, value, max_value, unit="", zones=None):
+    """Render a simple color-coded HTML/CSS gauge bar (no external plotting library)."""
+    pct = max(0.0, min(1.0, value / max_value)) if max_value > 0 else 0.0
+
+    if zones is None:
+        color = "#00e5ff"
+    else:
+        color = "#2ecc71"
+        for upper, zone_color in zones:
+            if value <= upper:
+                color = zone_color
+                break
+        else:
+            color = zones[-1][1]
+
+    st.markdown(f"""
+    <div class='gauge-wrap'>
+        <b>{label}: {value:,.2f} {unit}</b>
+        <div class='gauge-track'>
+            <div class='gauge-fill' style='width:{pct*100:.1f}%; background:{color};'></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 
 # =========================
 # HEADER
@@ -165,50 +211,24 @@ if menu == "Dashboard":
     df = pd.DataFrame({
         "Semester": [1, 2, 3, 4, 5, 6],
         "Performance": [60, 68, 75, 83, 90, 96]
-    })
+    }).set_index("Semester")
 
-    c1, c2 = st.columns([2, 1])
+    c1, c2 = st.columns(2)
 
     with c1:
-        fig = px.line(
-            df, x="Semester", y="Performance",
-            markers=True, title="Engineering Growth"
-        )
-        fig.update_traces(line_color="#00e5ff", line_width=3, marker=dict(size=10, color="white"))
-        fig.update_layout(
-            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-            font_color="white"
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        st.markdown("**Engineering Growth by Semester**")
+        st.line_chart(df, use_container_width=True)
 
     with c2:
-        fig2 = px.bar(
-            MATERIALS, x="Material", y="Yield Strength (MPa)",
-            title="Material Yield Strength", color="Yield Strength (MPa)",
-            color_continuous_scale="Blues"
-        )
-        fig2.update_layout(
-            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-            font_color="white", showlegend=False
-        )
-        st.plotly_chart(fig2, use_container_width=True)
+        st.markdown("**Material Yield Strength (MPa)**")
+        bar_df = MATERIALS.set_index("Material")[["Yield Strength (MPa)"]]
+        st.bar_chart(bar_df, use_container_width=True)
 
-    st.markdown("## 🕸 Material Comparison Radar")
-    categories = ["Density (kg/m³)", "Young Modulus (GPa)", "Yield Strength (MPa)", "Ultimate Strength (MPa)"]
-    fig3 = go.Figure()
-    for _, row in MATERIALS.iterrows():
-        norm_vals = [row[c] / MATERIALS[c].max() * 100 for c in categories]
-        fig3.add_trace(go.Scatterpolar(
-            r=norm_vals + [norm_vals[0]],
-            theta=categories + [categories[0]],
-            fill='toself',
-            name=row["Material"]
-        ))
-    fig3.update_layout(
-        polar=dict(bgcolor="rgba(255,255,255,0.05)", radialaxis=dict(visible=True, range=[0, 100])),
-        showlegend=True, paper_bgcolor="rgba(0,0,0,0)", font_color="white"
-    )
-    st.plotly_chart(fig3, use_container_width=True)
+    st.markdown("## 🔩 Material Comparison")
+    compare_df = MATERIALS.set_index("Material")[
+        ["Young Modulus (GPa)", "Yield Strength (MPa)", "Ultimate Strength (MPa)"]
+    ]
+    st.bar_chart(compare_df, use_container_width=True)
 
 # =========================
 # UNIT CONVERTER
@@ -256,12 +276,9 @@ elif menu == "Material Database":
     st.header("🔩 Material Database")
     st.dataframe(MATERIALS, use_container_width=True)
 
-    fig = px.bar(
-        MATERIALS, x="Material", y=["Yield Strength (MPa)", "Ultimate Strength (MPa)"],
-        barmode="group", title="Yield vs Ultimate Strength"
-    )
-    fig.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_color="white")
-    st.plotly_chart(fig, use_container_width=True)
+    st.markdown("**Yield vs Ultimate Strength (MPa)**")
+    chart_df = MATERIALS.set_index("Material")[["Yield Strength (MPa)", "Ultimate Strength (MPa)"]]
+    st.bar_chart(chart_df, use_container_width=True)
 
 # =========================
 # STRESS ANALYSIS
@@ -287,23 +304,10 @@ elif menu == "Stress Analysis":
         verdict = "✅ Safe" if safety_factor >= 1.5 else ("⚠️ Marginal" if safety_factor >= 1 else "❌ Unsafe")
         st.markdown(f"<div class='result-box'>Safety Factor<br><b>{safety_factor:.2f} — {verdict}</b></div>", unsafe_allow_html=True)
 
-    gauge = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=stress,
-        title={'text': "Stress vs Yield Strength (MPa)"},
-        gauge={
-            'axis': {'range': [0, yield_strength * 1.5]},
-            'bar': {'color': "#00e5ff"},
-            'steps': [
-                {'range': [0, yield_strength / 1.5], 'color': "rgba(0,255,150,0.3)"},
-                {'range': [yield_strength / 1.5, yield_strength], 'color': "rgba(255,200,0,0.3)"},
-                {'range': [yield_strength, yield_strength * 1.5], 'color': "rgba(255,0,0,0.3)"}
-            ],
-            'threshold': {'line': {'color': "red", 'width': 4}, 'value': yield_strength}
-        }
-    ))
-    gauge.update_layout(paper_bgcolor="rgba(0,0,0,0)", font_color="white")
-    st.plotly_chart(gauge, use_container_width=True)
+    gauge(
+        "Applied Stress vs Yield Strength", stress, yield_strength * 1.5, unit="MPa",
+        zones=[(yield_strength/1.5, "#2ecc71"), (yield_strength, "#f1c40f"), (yield_strength*1.5, "#e74c3c")]
+    )
 
     st.markdown("<div class='formula-box'>σ = F / A</div>", unsafe_allow_html=True)
 
@@ -330,17 +334,15 @@ elif menu == "Beam Deflection":
         st.markdown("<div class='formula-box'>δ = P·L³ / (48·E·I)</div>", unsafe_allow_html=True)
 
     x = np.linspace(0, L, 100)
-    y = (P * x * (3 * L**2 - 4 * x**2)) / (48 * E * I)
-    y[x > L/2] = ((P * (L - x[x > L/2]) * (3 * L**2 - 4 * (L - x[x > L/2])**2)) / (48 * E * I))
+    half = x <= L / 2
+    y = np.zeros_like(x)
+    y[half] = (P * x[half] * (3 * L**2 - 4 * x[half]**2)) / (48 * E * I)
+    xr = L - x[~half]
+    y[~half] = (P * xr * (3 * L**2 - 4 * xr**2)) / (48 * E * I)
 
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=x, y=-y, mode="lines", line=dict(color="#00e5ff", width=3), name="Deflection shape"))
-    fig.add_hline(y=0, line_dash="dash", line_color="white")
-    fig.update_layout(
-        title="Beam Deflection Shape", xaxis_title="Position along beam (m)", yaxis_title="Deflection (m)",
-        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_color="white"
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    shape_df = pd.DataFrame({"Position (m)": x, "Deflection (m)": -y}).set_index("Position (m)")
+    st.markdown("**Deflection Shape Along Beam**")
+    st.line_chart(shape_df, use_container_width=True)
 
 # =========================
 # POWER & TORQUE
@@ -364,12 +366,10 @@ elif menu == "Power & Torque":
 
     rpm_range = np.linspace(100, 5000, 50)
     power_range = (2 * np.pi * rpm_range * torque) / 60 / 1000
+    curve_df = pd.DataFrame({"RPM": rpm_range, "Power (kW)": power_range}).set_index("RPM")
 
-    fig = px.line(x=rpm_range, y=power_range, labels={"x": "RPM", "y": "Power (kW)"}, title="Power vs RPM at Fixed Torque")
-    fig.update_traces(line_color="#00e5ff", line_width=3)
-    fig.add_vline(x=rpm, line_dash="dash", line_color="yellow")
-    fig.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font_color="white")
-    st.plotly_chart(fig, use_container_width=True)
+    st.markdown("**Power vs RPM at Fixed Torque**")
+    st.line_chart(curve_df, use_container_width=True)
 
 # =========================
 # GEAR RATIO CALCULATOR
@@ -419,22 +419,10 @@ elif menu == "Fluid Flow (Reynolds Number)":
         st.markdown(f"<div class='result-box'>Flow Regime<br><b>{flow_regime}</b></div>", unsafe_allow_html=True)
         st.markdown("<div class='formula-box'>Re = ρ·V·D / μ</div>", unsafe_allow_html=True)
 
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=Re,
-        title={'text': "Reynolds Number"},
-        gauge={
-            'axis': {'range': [0, max(6000, Re * 1.2)]},
-            'bar': {'color': "#00e5ff"},
-            'steps': [
-                {'range': [0, 2300], 'color': "rgba(0,255,150,0.3)"},
-                {'range': [2300, 4000], 'color': "rgba(255,200,0,0.3)"},
-                {'range': [4000, max(6000, Re * 1.2)], 'color': "rgba(255,0,0,0.3)"}
-            ]
-        }
-    ))
-    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", font_color="white")
-    st.plotly_chart(fig, use_container_width=True)
+    gauge(
+        "Reynolds Number", Re, max(6000, Re * 1.2),
+        zones=[(2300, "#2ecc71"), (4000, "#f1c40f"), (max(6000, Re*1.2), "#e74c3c")]
+    )
 
 # =========================
 # THERMAL EFFICIENCY
@@ -471,14 +459,7 @@ elif menu == "Thermal Efficiency":
         st.markdown(f"<div class='formula-box'>{formula}</div>", unsafe_allow_html=True)
 
     with col2:
-        fig = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=eff * 100,
-            title={'text': f"{cycle} Cycle Efficiency (%)"},
-            gauge={'axis': {'range': [0, 100]}, 'bar': {'color': "#00e5ff"}}
-        ))
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", font_color="white")
-        st.plotly_chart(fig, use_container_width=True)
+        gauge(f"{cycle} Cycle Efficiency", eff * 100, 100, unit="%")
 
 # =========================
 # FOOTER
