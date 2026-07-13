@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from datetime import date
 
 st.set_page_config(
     page_title="MECHXPERT",
@@ -8,108 +9,272 @@ st.set_page_config(
     layout="wide"
 )
 
+MENU_SHEETS = {
+    "Dashboard": "01",
+    "Unit Converter": "02",
+    "Material Database": "03",
+    "Stress Analysis": "04",
+    "Beam Deflection": "05",
+    "Power & Torque": "06",
+    "Gear Ratio Calculator": "07",
+    "Fluid Flow (Reynolds Number)": "08",
+    "Thermal Efficiency": "09",
+}
+
 # =========================
-# CUSTOM CSS
+# CUSTOM CSS — Blueprint / Drafting Sheet identity
 # =========================
 st.markdown("""
 <style>
 
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Inter:wght@400;500;700&display=swap');
+
+:root{
+  --navy: #0A1930;
+  --panel: #12294A;
+  --panel-light: #1B3A63;
+  --cyan: #00D9FF;
+  --orange: #FF6B35;
+  --green: #39FF6A;
+  --amber: #FFD60A;
+  --red: #FF3B30;
+  --ink: #F5F7FA;
+}
+
 .stApp{
-background: linear-gradient(135deg,#00c6ff,#0072ff,#7b2ff7);
+background-color: var(--navy);
+background-image:
+  linear-gradient(rgba(0,217,255,0.06) 1px, transparent 1px),
+  linear-gradient(90deg, rgba(0,217,255,0.06) 1px, transparent 1px);
+background-size: 32px 32px;
+}
+
+html, body, [class*="css"]{
+font-family: 'Inter', sans-serif;
+}
+
+/* ---------- Header / Title Block ---------- */
+
+.drafting-header{
+border: 2px solid var(--cyan);
+border-radius: 4px;
+padding: 22px 30px;
+margin-bottom: 26px;
+background: linear-gradient(135deg, rgba(0,217,255,0.05), rgba(255,107,53,0.05));
+position: relative;
+}
+
+.drafting-header::before{
+content: "";
+position: absolute;
+top: 6px; left: 6px; right: 6px; bottom: 6px;
+border: 1px dashed rgba(0,217,255,0.35);
+border-radius: 2px;
+pointer-events: none;
+}
+
+.eyebrow{
+font-family: 'JetBrains Mono', monospace;
+letter-spacing: 4px;
+font-size: 12px;
+color: var(--orange) !important;
+font-weight: 600;
+margin-bottom: 6px;
 }
 
 .main-title{
-font-size:55px;
-font-weight:800;
-text-align:center;
-color:white;
-margin-bottom:0px;
-text-shadow: 2px 2px 8px rgba(0,0,0,0.35);
+font-family: 'JetBrains Mono', monospace;
+font-size: 46px;
+font-weight: 800;
+color: var(--ink) !important;
+margin: 0;
+letter-spacing: 2px;
 }
+
+.main-title .accent{ color: var(--cyan) !important; }
 
 .sub-title{
-text-align:center;
-color:#e8e8ff;
-font-size:16px;
-margin-bottom:25px;
+color: rgba(245,247,250,0.75) !important;
+font-size: 15px;
+margin-top: 6px;
+font-family: 'Inter', sans-serif;
 }
 
+/* ---------- Sheet label per module ---------- */
+
+.sheet-label{
+font-family: 'JetBrains Mono', monospace;
+color: var(--cyan) !important;
+font-size: 13px;
+letter-spacing: 3px;
+border-bottom: 1px solid rgba(0,217,255,0.3);
+padding-bottom: 10px;
+margin-bottom: 20px;
+}
+
+/* ---------- Cards ---------- */
+
 .card{
-background:rgba(255,255,255,0.15);
-padding:20px;
-border-radius:20px;
-text-align:center;
-color:white;
-box-shadow:0px 5px 20px rgba(0,0,0,0.3);
-border:1px solid rgba(255,255,255,0.25);
+background: var(--panel);
+padding: 22px 16px;
+border-radius: 6px;
+text-align: center;
+color: var(--ink);
+border: 1px solid rgba(0,217,255,0.35);
+border-top: 4px solid var(--orange);
+position: relative;
+}
+
+.card::after{
+content: "";
+position: absolute;
+top: 8px; right: 8px;
+width: 10px; height: 10px;
+border-top: 2px solid var(--cyan);
+border-right: 2px solid var(--cyan);
 }
 
 .card h2{
-font-size:38px;
-margin-bottom:5px;
+font-family: 'JetBrains Mono', monospace;
+font-size: 34px;
+margin-bottom: 4px;
+color: var(--cyan) !important;
 }
 
+.card p{
+color: rgba(245,247,250,0.7) !important;
+font-size: 12px;
+letter-spacing: 1px;
+text-transform: uppercase;
+margin: 0;
+}
+
+/* ---------- Result / formula boxes ---------- */
+
 .result-box{
-background:rgba(255,255,255,0.12);
-padding:18px 22px;
-border-radius:16px;
-border-left:6px solid #00e5ff;
-color:white;
-margin-top:10px;
-margin-bottom:10px;
+background: var(--panel);
+padding: 16px 20px;
+border-radius: 6px;
+border-left: 5px solid var(--orange);
+color: var(--ink);
+margin-top: 10px;
+margin-bottom: 10px;
+font-family: 'Inter', sans-serif;
+}
+
+.result-box b{
+font-family: 'JetBrains Mono', monospace;
+color: var(--cyan) !important;
+font-size: 18px;
 }
 
 .formula-box{
-background:rgba(0,0,0,0.25);
-padding:14px 18px;
-border-radius:12px;
-color:#dff6ff;
-font-family:monospace;
-font-size:16px;
-margin-top:8px;
+background: rgba(0,0,0,0.35);
+padding: 14px 18px;
+border-radius: 6px;
+color: var(--amber) !important;
+font-family: 'JetBrains Mono', monospace;
+font-size: 15px;
+margin-top: 8px;
+border: 1px dashed rgba(255,214,10,0.4);
 }
 
+/* ---------- Gauges ---------- */
+
 .gauge-wrap{
-background:rgba(0,0,0,0.25);
-border-radius:12px;
-padding:16px 20px;
-margin-top:10px;
-margin-bottom:10px;
+background: var(--panel);
+border: 1px solid rgba(0,217,255,0.3);
+border-radius: 6px;
+padding: 16px 20px;
+margin-top: 10px;
+margin-bottom: 10px;
+}
+
+.gauge-wrap b{
+font-family: 'JetBrains Mono', monospace;
+color: var(--ink) !important;
+font-size: 14px;
 }
 
 .gauge-track{
-width:100%;
-height:22px;
-background:rgba(255,255,255,0.15);
-border-radius:11px;
-overflow:hidden;
-margin-top:8px;
+width: 100%;
+height: 20px;
+background: rgba(0,0,0,0.4);
+border-radius: 3px;
+overflow: hidden;
+margin-top: 10px;
+border: 1px solid rgba(0,217,255,0.25);
 }
 
 .gauge-fill{
-height:100%;
-border-radius:11px;
+height: 100%;
 }
 
-.footer{
-text-align:center;
-color:rgba(255,255,255,0.7);
-font-size:13px;
-margin-top:40px;
-padding-top:15px;
-border-top:1px solid rgba(255,255,255,0.2);
-}
+/* ---------- Sidebar ---------- */
 
 [data-testid="stSidebar"]{
-background:linear-gradient(180deg,#ff512f,#dd2476);
+background: linear-gradient(180deg, #071527, #0A1930);
+border-right: 2px solid var(--orange);
 }
 
-h1,h2,h3,h4,p,label,span{
-color:white !important;
+[data-testid="stSidebar"] h3{
+font-family: 'JetBrains Mono', monospace;
+color: var(--orange) !important;
+letter-spacing: 2px;
+font-size: 15px;
+}
+
+/* ---------- General text ---------- */
+
+h1,h2,h3,h4,p,label,span,div{
+color: var(--ink);
+}
+
+h2, h3{
+font-family: 'JetBrains Mono', monospace;
 }
 
 div[data-testid="stMetricValue"]{
-color:white !important;
+color: var(--cyan) !important;
+font-family: 'JetBrains Mono', monospace;
+}
+
+/* ---------- Title block (footer signature) ---------- */
+
+.title-block{
+margin-top: 40px;
+border: 2px solid var(--cyan);
+border-radius: 4px;
+overflow: hidden;
+font-family: 'JetBrains Mono', monospace;
+font-size: 12px;
+}
+
+.title-block-row{
+display: flex;
+border-top: 1px solid rgba(0,217,255,0.3);
+}
+
+.title-block-row:first-child{ border-top: none; }
+
+.tb-cell{
+flex: 1;
+padding: 8px 14px;
+border-right: 1px solid rgba(0,217,255,0.3);
+}
+
+.tb-cell:last-child{ border-right: none; }
+
+.tb-label{
+color: var(--orange) !important;
+letter-spacing: 1px;
+font-size: 10px;
+display: block;
+}
+
+.tb-value{
+color: var(--ink) !important;
+font-weight: 600;
 }
 
 </style>
@@ -117,19 +282,17 @@ color:white !important;
 
 
 def gauge(label, value, max_value, unit="", zones=None):
-    """Render a simple color-coded HTML/CSS gauge bar (no external plotting library)."""
+    """Render a color-coded HTML/CSS gauge bar (no external plotting library)."""
     pct = max(0.0, min(1.0, value / max_value)) if max_value > 0 else 0.0
 
     if zones is None:
-        color = "#00e5ff"
+        color = "var(--cyan)"
     else:
-        color = "#2ecc71"
+        color = zones[-1][1]
         for upper, zone_color in zones:
             if value <= upper:
                 color = zone_color
                 break
-        else:
-            color = zones[-1][1]
 
     st.markdown(f"""
     <div class='gauge-wrap'>
@@ -141,44 +304,66 @@ def gauge(label, value, max_value, unit="", zones=None):
     """, unsafe_allow_html=True)
 
 
+def sheet_label(name):
+    st.markdown(
+        f"<div class='sheet-label'>SHEET {MENU_SHEETS[name]} / {len(MENU_SHEETS):02d} — {name.upper()}</div>",
+        unsafe_allow_html=True
+    )
+
+
+def title_block(module_name):
+    today = date.today().strftime("%d %b %Y")
+    st.markdown(f"""
+    <div class='title-block'>
+        <div class='title-block-row'>
+            <div class='tb-cell'><span class='tb-label'>DRAWN BY</span><span class='tb-value'>ABDUL MANNAN</span></div>
+            <div class='tb-cell'><span class='tb-label'>PROJECT</span><span class='tb-value'>MECHXPERT TOOLKIT</span></div>
+            <div class='tb-cell'><span class='tb-label'>SHEET</span><span class='tb-value'>{MENU_SHEETS[module_name]} OF {len(MENU_SHEETS):02d}</span></div>
+        </div>
+        <div class='title-block-row'>
+            <div class='tb-cell'><span class='tb-label'>DATE</span><span class='tb-value'>{today}</span></div>
+            <div class='tb-cell'><span class='tb-label'>SCALE</span><span class='tb-value'>NOT TO SCALE</span></div>
+            <div class='tb-cell'><span class='tb-label'>REV</span><span class='tb-value'>2026.1</span></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
 # =========================
 # HEADER
 # =========================
 
-st.markdown("<div class='main-title'>⚙️ MECHXPERT</div>", unsafe_allow_html=True)
-st.markdown("<div class='sub-title'>A Mechanical Engineering Toolkit — Developed by Abdul Mannan</div>", unsafe_allow_html=True)
+st.markdown("""
+<div class='drafting-header'>
+    <div class='eyebrow'>MECHANICAL ENGINEERING TOOLKIT · DRAFT SHEET SERIES</div>
+    <div class='main-title'>⚙ MECH<span class='accent'>X</span>PERT</div>
+    <div class='sub-title'>Calculation suite for statics, strength of materials, thermodynamics &amp; fluid mechanics — Developed by Abdul Mannan</div>
+</div>
+""", unsafe_allow_html=True)
 
 # =========================
 # SIDEBAR
 # =========================
 
-st.sidebar.markdown("### 🧭 Navigation")
+st.sidebar.markdown("### ▣ CONTROL PANEL")
 
 menu = st.sidebar.selectbox(
-    "Choose Module",
-    [
-        "Dashboard",
-        "Unit Converter",
-        "Material Database",
-        "Stress Analysis",
-        "Beam Deflection",
-        "Power & Torque",
-        "Gear Ratio Calculator",
-        "Fluid Flow (Reynolds Number)",
-        "Thermal Efficiency"
-    ]
+    "SELECT MODULE",
+    list(MENU_SHEETS.keys())
 )
 
 st.sidebar.markdown("---")
 st.sidebar.markdown(
     """
-    **About MECHXPERT**
-
-    A quick-reference calculator suite for
-    core mechanical engineering concepts —
-    statics, strength of materials, thermo,
-    and fluid mechanics.
-    """
+    <div style='font-family:JetBrains Mono, monospace; font-size:12px; color:rgba(245,247,250,0.75); line-height:1.6;'>
+    <b style='color:#FF6B35;'>ABOUT</b><br>
+    A quick-reference calculator suite<br>
+    for core mechanical engineering<br>
+    concepts — statics, strength of<br>
+    materials, thermo, and fluids.
+    </div>
+    """,
+    unsafe_allow_html=True
 )
 
 MATERIALS = pd.DataFrame({
@@ -194,11 +379,12 @@ MATERIALS = pd.DataFrame({
 # =========================
 
 if menu == "Dashboard":
+    sheet_label(menu)
 
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.markdown("<div class='card'><h2>9</h2><p>Engineering Modules</p></div>", unsafe_allow_html=True)
+        st.markdown("<div class='card'><h2>9</h2><p>Modules</p></div>", unsafe_allow_html=True)
     with col2:
         st.markdown(f"<div class='card'><h2>{len(MATERIALS)}</h2><p>Materials in DB</p></div>", unsafe_allow_html=True)
     with col3:
@@ -206,7 +392,7 @@ if menu == "Dashboard":
     with col4:
         st.markdown("<div class='card'><h2>2026</h2><p>Build Year</p></div>", unsafe_allow_html=True)
 
-    st.markdown("## 📈 Performance Analytics")
+    st.markdown("#### ▸ PERFORMANCE ANALYTICS")
 
     df = pd.DataFrame({
         "Semester": [1, 2, 3, 4, 5, 6],
@@ -217,28 +403,29 @@ if menu == "Dashboard":
 
     with c1:
         st.markdown("**Engineering Growth by Semester**")
-        st.line_chart(df, use_container_width=True)
+        st.line_chart(df, use_container_width=True, color="#00D9FF")
 
     with c2:
         st.markdown("**Material Yield Strength (MPa)**")
         bar_df = MATERIALS.set_index("Material")[["Yield Strength (MPa)"]]
-        st.bar_chart(bar_df, use_container_width=True)
+        st.bar_chart(bar_df, use_container_width=True, color="#FF6B35")
 
-    st.markdown("## 🔩 Material Comparison")
+    st.markdown("#### ▸ MATERIAL COMPARISON")
     compare_df = MATERIALS.set_index("Material")[
         ["Young Modulus (GPa)", "Yield Strength (MPa)", "Ultimate Strength (MPa)"]
     ]
-    st.bar_chart(compare_df, use_container_width=True)
+    st.bar_chart(compare_df, use_container_width=True, color=["#00D9FF", "#FF6B35", "#39FF6A"])
+
+    title_block(menu)
 
 # =========================
 # UNIT CONVERTER
 # =========================
 
 elif menu == "Unit Converter":
+    sheet_label(menu)
 
-    st.header("📏 Unit Converter")
-
-    conv_type = st.radio("Conversion Type", ["Length", "Force", "Pressure", "Torque"], horizontal=True)
+    conv_type = st.radio("CONVERSION TYPE", ["Length", "Force", "Pressure", "Torque"], horizontal=True)
 
     if conv_type == "Length":
         mm = st.number_input("Length (mm)", value=1000.0)
@@ -267,26 +454,29 @@ elif menu == "Unit Converter":
         c1.markdown(f"<div class='result-box'>lb-ft<br><b>{nm*0.737562:.4f} lb·ft</b></div>", unsafe_allow_html=True)
         c2.markdown(f"<div class='result-box'>lb-in<br><b>{nm*8.85075:.4f} lb·in</b></div>", unsafe_allow_html=True)
 
+    title_block(menu)
+
 # =========================
 # MATERIAL DATABASE
 # =========================
 
 elif menu == "Material Database":
+    sheet_label(menu)
 
-    st.header("🔩 Material Database")
     st.dataframe(MATERIALS, use_container_width=True)
 
     st.markdown("**Yield vs Ultimate Strength (MPa)**")
     chart_df = MATERIALS.set_index("Material")[["Yield Strength (MPa)", "Ultimate Strength (MPa)"]]
-    st.bar_chart(chart_df, use_container_width=True)
+    st.bar_chart(chart_df, use_container_width=True, color=["#FF6B35", "#00D9FF"])
+
+    title_block(menu)
 
 # =========================
 # STRESS ANALYSIS
 # =========================
 
 elif menu == "Stress Analysis":
-
-    st.header("📊 Stress Analysis")
+    sheet_label(menu)
 
     col1, col2 = st.columns(2)
     with col1:
@@ -301,23 +491,24 @@ elif menu == "Stress Analysis":
     with col2:
         st.markdown(f"<div class='result-box'>Applied Stress<br><b>{stress:.2f} MPa</b></div>", unsafe_allow_html=True)
         st.markdown(f"<div class='result-box'>Yield Strength ({material_choice})<br><b>{yield_strength:.1f} MPa</b></div>", unsafe_allow_html=True)
-        verdict = "✅ Safe" if safety_factor >= 1.5 else ("⚠️ Marginal" if safety_factor >= 1 else "❌ Unsafe")
+        verdict = "SAFE" if safety_factor >= 1.5 else ("MARGINAL" if safety_factor >= 1 else "UNSAFE")
         st.markdown(f"<div class='result-box'>Safety Factor<br><b>{safety_factor:.2f} — {verdict}</b></div>", unsafe_allow_html=True)
 
     gauge(
         "Applied Stress vs Yield Strength", stress, yield_strength * 1.5, unit="MPa",
-        zones=[(yield_strength/1.5, "#2ecc71"), (yield_strength, "#f1c40f"), (yield_strength*1.5, "#e74c3c")]
+        zones=[(yield_strength/1.5, "#39FF6A"), (yield_strength, "#FFD60A"), (yield_strength*1.5, "#FF3B30")]
     )
 
     st.markdown("<div class='formula-box'>σ = F / A</div>", unsafe_allow_html=True)
+
+    title_block(menu)
 
 # =========================
 # BEAM DEFLECTION
 # =========================
 
 elif menu == "Beam Deflection":
-
-    st.header("🏗 Beam Deflection")
+    sheet_label(menu)
     st.caption("Simply supported beam, central point load")
 
     col1, col2 = st.columns(2)
@@ -342,15 +533,16 @@ elif menu == "Beam Deflection":
 
     shape_df = pd.DataFrame({"Position (m)": x, "Deflection (m)": -y}).set_index("Position (m)")
     st.markdown("**Deflection Shape Along Beam**")
-    st.line_chart(shape_df, use_container_width=True)
+    st.line_chart(shape_df, use_container_width=True, color="#FF6B35")
+
+    title_block(menu)
 
 # =========================
 # POWER & TORQUE
 # =========================
 
 elif menu == "Power & Torque":
-
-    st.header("⚡ Power & Torque")
+    sheet_label(menu)
 
     col1, col2 = st.columns(2)
     with col1:
@@ -369,15 +561,16 @@ elif menu == "Power & Torque":
     curve_df = pd.DataFrame({"RPM": rpm_range, "Power (kW)": power_range}).set_index("RPM")
 
     st.markdown("**Power vs RPM at Fixed Torque**")
-    st.line_chart(curve_df, use_container_width=True)
+    st.line_chart(curve_df, use_container_width=True, color="#00D9FF")
+
+    title_block(menu)
 
 # =========================
 # GEAR RATIO CALCULATOR
 # =========================
 
 elif menu == "Gear Ratio Calculator":
-
-    st.header("⚙️ Gear Ratio Calculator")
+    sheet_label(menu)
 
     col1, col2 = st.columns(2)
     with col1:
@@ -396,13 +589,14 @@ elif menu == "Gear Ratio Calculator":
 
     st.markdown("<div class='formula-box'>Ratio = T_driven / T_driver &nbsp;&nbsp;|&nbsp;&nbsp; N_out = N_in / Ratio</div>", unsafe_allow_html=True)
 
+    title_block(menu)
+
 # =========================
 # FLUID FLOW - REYNOLDS NUMBER
 # =========================
 
 elif menu == "Fluid Flow (Reynolds Number)":
-
-    st.header("🌊 Reynolds Number Calculator")
+    sheet_label(menu)
 
     col1, col2 = st.columns(2)
     with col1:
@@ -421,16 +615,17 @@ elif menu == "Fluid Flow (Reynolds Number)":
 
     gauge(
         "Reynolds Number", Re, max(6000, Re * 1.2),
-        zones=[(2300, "#2ecc71"), (4000, "#f1c40f"), (max(6000, Re*1.2), "#e74c3c")]
+        zones=[(2300, "#39FF6A"), (4000, "#FFD60A"), (max(6000, Re*1.2), "#FF3B30")]
     )
+
+    title_block(menu)
 
 # =========================
 # THERMAL EFFICIENCY
 # =========================
 
 elif menu == "Thermal Efficiency":
-
-    st.header("🔥 Thermal Cycle Efficiency")
+    sheet_label(menu)
 
     cycle = st.selectbox("Select Cycle", ["Carnot", "Otto", "Diesel"])
 
@@ -459,13 +654,7 @@ elif menu == "Thermal Efficiency":
         st.markdown(f"<div class='formula-box'>{formula}</div>", unsafe_allow_html=True)
 
     with col2:
-        gauge(f"{cycle} Cycle Efficiency", eff * 100, 100, unit="%")
+        gauge(f"{cycle} Cycle Efficiency", eff * 100, 100, unit="%",
+              zones=[(35, "#FF3B30"), (55, "#FFD60A"), (100, "#39FF6A")])
 
-# =========================
-# FOOTER
-# =========================
-
-st.markdown(
-    "<div class='footer'>MECHXPERT © 2026 — Developed by Abdul Mannan | Mechanical Engineering, UET Taxila</div>",
-    unsafe_allow_html=True
-)
+    title_block(menu)
